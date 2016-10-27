@@ -50,3 +50,6 @@ tmtags
 
 # App ignores.
 instance/settings.py
+
+# Vagrant
+.vagrant/
