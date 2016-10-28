@@ -34,10 +34,20 @@ iface eth0 inet static
   4. Add the user to the sudo group
      adduser ${SSH_USER} sudo
 
-  5. Run the commands in: $0 --help
+  5. Run the commands in: ${0} --help
      Example:
        ./deploy.sh -a
 EOF
+}
+
+function preseed_production() {
+  echo "Preseeding the production server..."
+  ssh -t "${SSH_USER}@${SERVER_IP}" bash -c "'
+adduser --disabled-password --gecos \"\" ${KEY_USER}
+apt-get update && apt-get install -y -q sudo
+adduser ${KEY_USER} sudo
+  '"
+  echo "done!"
 }
 
 function configure_sudo () {
@@ -80,7 +90,7 @@ function install_docker () {
   echo "Configuring Docker v${1}..."
   ssh -t "${SSH_USER}@${SERVER_IP}" bash -c "'
 sudo apt-get update
-sudo apt-get install -y -q libapparmor1 aufs-tools ca-certificates libltdl7
+sudo apt-get install -y -q libapparmor1 aufs-tools ca-certificates
 wget -O "docker.deb https://apt.dockerproject.org/repo/pool/main/d/docker-engine/docker-engine_${1}-0~jessie_amd64.deb"
 sudo dpkg -i docker.deb
 rm docker.deb
@@ -112,7 +122,7 @@ sudo git --git-dir=/var/git/nginx.git --bare init
 sudo mv /tmp/mobydock /var/git/mobydock.git/hooks/post-receive
 sudo mv /tmp/nginx /var/git/nginx.git/hooks/post-receive
 sudo chmod +x /var/git/mobydock.git/hooks/post-receive /var/git/nginx.git/hooks/post-receive
-sudo chown ${SSH_USER}:${SSH_USER} -R /var/git/mobydock.git /var/git/mobydock.git /var/git/mobydock /var/git/nginx.git /var/git/nginx
+sudo chown ${KEY_USER}:${KEY_USER} -R /var/git/mobydock.git /var/git/mobydock.git /var/git/mobydock /var/git/nginx.git /var/git/nginx
   '"
   echo "done!"
 }
@@ -162,10 +172,10 @@ function copy_env_config_files () {
   scp "${APP_ENV}/__init__.py" "${SSH_USER}@${SERVER_IP}:/tmp/__init__.py"
   scp "${APP_ENV}/settings.py" "${SSH_USER}@${SERVER_IP}:/tmp/settings.py"
   ssh -t "${SSH_USER}@${SERVER_IP}" bash -c "'
-sudo mkdir -p /home/${SSH_USER}/config
-sudo mv /tmp/__init__.py /home/${SSH_USER}/config/__init__.py
-sudo mv /tmp/settings.py /home/${SSH_USER}/config/settings.py
-sudo chown ${SSH_USER}:${SSH_USER} -R /home/${SSH_USER}/config
+sudo mkdir -p /home/${KEY_USER}/config
+sudo mv /tmp/__init__.py /home/${KEY_USER}/config/__init__.py
+sudo mv /tmp/settings.py /home/${KEY_USER}/config/settings.py
+sudo chown ${KEY_USER}:${KEY_USER} -R /home/${KEY_USER}/config
   '"
   echo "done!"
 }
@@ -226,7 +236,7 @@ function provision_server () {
 
 function help_menu () {
 cat << EOF
-Usage: ${0} (-h | -S | -u | -k | -s | -d [docker_ver] | -l | -g | -f | -c | -b | -e | -x | -r | -a [docker_ver])
+Usage: ${0} (-h | -S | -P | -u | -k | -s | -d [docker_ver] | -l | -g | -f | -c | -b | -e | -x | -r | -a [docker_ver])
 
 ENVIRONMENT VARIABLES:
    APP_ENV          Environment that is being deployed to, 'staging' or 'production'
@@ -247,6 +257,7 @@ ENVIRONMENT VARIABLES:
 OPTIONS:
    -h|--help                 Show this message
    -S|--preseed-staging      Preseed intructions for the staging server
+   -P|--preseed-production   Preseed intructions for the production server
    -u|--sudo                 Configure passwordless sudo
    -k|--ssh-key              Add SSH key
    -s|--ssh                  Configure secure SSH
@@ -315,6 +326,10 @@ do
 case "${1}" in
   -S|--preseed-staging)
   preseed_staging
+  shift
+  ;;
+  -P|--preseed-production)
+  preseed_production
   shift
   ;;
   -u|--sudo)

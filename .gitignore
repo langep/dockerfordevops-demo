@@ -54,3 +54,4 @@ instance/settings.py
 # Vagrant
 .vagrant/
 deploy/nginx/.git
+deploy/production
