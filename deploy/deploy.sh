@@ -8,7 +8,7 @@ KEY_USER="${KEY_USER:-$(whoami)}"
 DOCKER_VERSION="${DOCKER_VERSION:-1.8.3}"
 
 DOCKER_PULL_IMAGES=("postgres:9.4.5" "redis:2.8.22")
-COPY_UNIT_FILES=("iptables-restore" "swap" "postgres" "redis" "mobydock" "nginx")
+COPY_UNIT_FILES=("swap" "postgres" "redis" "mobydock" "nginx")
 SSL_CERT_BASE_NAME="productionexample"
 
 
@@ -86,6 +86,29 @@ sudo systemctl restart ssh
   echo "done!"
 }
 
+function configure_firewall () {
+  echo "Configuring iptables firewall..."
+  scp "iptables/rules-save" "${SSH_USER}@${SERVER_IP}:/tmp/rules-save"
+  ssh -t "${SSH_USER}@${SERVER_IP}" bash -c "'
+sudo mkdir -p /var/lib/iptables
+sudo mv /tmp/rules-save /var/lib/iptables
+sudo chown root:root -R /var/lib/iptables
+  '"
+
+  scp "units/iptables-restore.service" "${SSH_USER}@${SERVER_IP}:/tmp/iptables-restore.service"
+  ssh -t "${SSH_USER}@${SERVER_IP}" bash -c "'
+sudo mv /tmp/iptables-restore.service /etc/systemd/system
+sudo chown ${SSH_USER}:${SSH_USER} /etc/systemd/system/iptables-restore.service
+  '"
+
+  ssh -t "${SSH_USER}@${SERVER_IP}" bash -c "'
+sudo systemctl enable iptables-restore.service
+sudo systemctl start iptables-restore.service
+  '"
+
+  echo "done!"
+}
+
 function install_docker () {
   echo "Configuring Docker v${1}..."
   ssh -t "${SSH_USER}@${SERVER_IP}" bash -c "'
@@ -127,17 +150,6 @@ sudo chown ${KEY_USER}:${KEY_USER} -R /var/git/mobydock.git /var/git/mobydock.gi
   echo "done!"
 }
 
-function configure_firewall () {
-  echo "Configuring iptables firewall..."
-  scp "iptables/rules-save" "${SSH_USER}@${SERVER_IP}:/tmp/rules-save"
-  ssh -t "${SSH_USER}@${SERVER_IP}" bash -c "'
-sudo mkdir -p /var/lib/iptables
-sudo mv /tmp/rules-save /var/lib/iptables
-sudo chown root:root -R /var/lib/iptables
-  '"
-  echo "done!"
-}
-
 function copy_units () {
   echo "Copying systemd unit files..."
   for unit in "${COPY_UNIT_FILES[@]}"
@@ -154,8 +166,6 @@ sudo chown ${SSH_USER}:${SSH_USER} /etc/systemd/system/${unit}.service
 function enable_base_units () {
   echo "Enabling base systemd units..."
   ssh -t "${SSH_USER}@${SERVER_IP}" bash -c "'
-sudo systemctl enable iptables-restore.service
-sudo systemctl start iptables-restore.service
 sudo systemctl enable swap.service
 sudo systemctl start swap.service
 sudo systemctl enable postgres.service
@@ -216,13 +226,13 @@ function provision_server () {
   echo "---"
   configure_secure_ssh
   echo "---"
+  configure_firewall
+  echo "---"
   install_docker ${1}
   echo "---"
   docker_pull
   echo "---"
   git_init
-  echo "---"
-  configure_firewall
   echo "---"
   copy_units
   echo "---"
@@ -261,10 +271,10 @@ OPTIONS:
    -u|--sudo                 Configure passwordless sudo
    -k|--ssh-key              Add SSH key
    -s|--ssh                  Configure secure SSH
+   -f|--firewall             Configure the iptables firewall
    -d|--docker               Install Docker
    -l|--docker-pull          Pull necessary Docker images
    -g|--git-init             Install and initialize git
-   -f|--firewall             Configure the iptables firewall
    -c|--copy-units           Copy systemd unit files
    -b|--enable-base-units    Enable base systemd unit files
    -e|--copy--environment    Copy app environment/config files
@@ -282,6 +292,9 @@ EXAMPLES:
    Configure secure SSH:
         $ deploy -s
 
+   Configure the iptables firewall:
+        $ deploy -f
+
    Install Docker v${DOCKER_VERSION}:
         $ deploy -d
 
@@ -293,9 +306,6 @@ EXAMPLES:
 
    Install and initialize git:
         $ deploy -g
-
-   Configure the iptables firewall:
-        $ deploy -f
 
    Copy systemd unit files:
         $ deploy -c
