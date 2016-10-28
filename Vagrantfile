@@ -13,6 +13,7 @@ Vagrant.configure("2") do |config|
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://atlas.hashicorp.com/search.
   config.vm.box = "debian/jessie64"
+  config.vm.hostname = "stagingserver"
 
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
@@ -26,12 +27,13 @@ Vagrant.configure("2") do |config|
 
   # Create a private network, which allows host-only access to the machine
   # using a specific IP.
-  # config.vm.network "private_network", ip: "192.168.1.99"
+  config.vm.network "private_network", ip: "192.168.1.99"
 
   # Create a public network, which generally matched to bridged network.
   # Bridged networks make the machine appear as another physical device on
   # your network.
-  config.vm.network "public_network", ip: "192.168.128.99"
+  config.vm.network "public_network", bridge: 'en0: Wi-Fi (AirPort)'
+  
 
   # Share an additional folder to the guest VM. The first argument is
   # the path on the host to the actual folder. The second argument is
@@ -68,11 +70,15 @@ Vagrant.configure("2") do |config|
   # Enable provisioning with a shell script. Additional provisioners such as
   # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
   # documentation for more information about their specific syntax and use.
+  config.vm.provision "file", source: "~/.ssh/id_rsa.pub", destination: "/tmp/id_rsa.pub"
   config.vm.provision "shell", inline: <<-SHELL
-     apt-get update
-     apt-get install -y libapparmor1 aufs-tools apt-transport-https ca-certificates libltdl7
-     wget -O docker.deb http://apt.dockerproject.org/repo/pool/main/d/docker-engine/docker-engine_1.12.1-0~jessie_amd64.deb
-     dpkg -i docker.deb
-     sudo usermod -aG docker vagrant
-   SHELL
+    adduser --disabled-password --gecos "" plange
+    adduser plange sudo
+    mkdir /home/plange/.ssh
+    mv /tmp/id_rsa.pub /home/plange/.ssh/authorized_keys
+    chmod 700 /home/plange/.ssh
+    chmod 640 /home/plange/.ssh/authorized_keys
+    sudo chown plange:plange -R /home/plange/.ssh
+    echo "plange ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
+  SHELL
 end

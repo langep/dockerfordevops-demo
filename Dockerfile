@@ -1,5 +1,5 @@
 FROM python:2.7-slim
-MAINTAINER Nick Janetakis <nick.janetakis@gmail.com>
+MAINTAINER Patrick L. Lange <patrick.l.lange@gmail.com>
 
 RUN apt-get update && apt-get install -qq -y build-essential libpq-dev postgresql-client-9.4 --fix-missing --no-install-recommends
 
